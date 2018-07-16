@@ -1,24 +1,23 @@
 module Types
   ( Annotate(..)
   , Ast
-  , Closure(..)
+  , Closure
   , Env(..)
   , Expr
   , Lambda
   , Literal(..)
   , Meta(..)
   , Name(..)
-  , Thunk(..)
   , Type
   , pattern App
   , pattern Arr
-  , pattern Clo
+  , pattern Closure
+  , pattern Cls
   , pattern Con
   , pattern Lam
   , pattern Lambda
   , pattern Lit
   , pattern Prm
-  , pattern Thk
   , pattern Sym
   , pattern Var
   , tcon
@@ -35,9 +34,7 @@ module Types
 
 import Core
 import Data.Map.Lazy (Map)
-import Data.Functor.Classes (Show1(..))
 import Data.Functor.Foldable (Fix(..))
--- import Text.Show.Deriving
 
 newtype Name = Name Text deriving (Eq, Ord, Show)
 
@@ -76,15 +73,7 @@ data Literal
   | String  Text
   deriving Show
 
-newtype Env = Env { unEnv :: (Map Name Expr) } deriving Show
-
-data Closure a
-  = Closure
-    { _env :: Env
-    , _f   :: (LambdaF a)
-    } deriving (Functor, Show)
-
-newtype Thunk a = Thunk { _closure :: Closure a } deriving (Functor, Show)
+newtype Env = Env { unEnv :: (Map Name Expr) }
 
 data LambdaF a
   = LambdaF
@@ -94,18 +83,22 @@ data LambdaF a
 
 type Lambda = LambdaF Expr
 
+data ClosureF a
+  = ClosureF
+    { _env :: Env
+    , _f   :: a
+    } deriving Functor
+
+type Closure = ClosureF Lambda
+
 data ExpF a
   = LitF Literal
   | SymF Name
   | AppF a a
   | LamF (LambdaF a)
-  | CloF (Closure a)
-  | PrmF Name (LambdaF a)
-  | ThkF (Thunk a)
-  deriving (Functor, Show)
-
-instance Show1 ExpF where
-  liftShowsPrec = undefined
+  | ClsF (ClosureF a)
+  | PrmF (Expr -> Expr)
+  deriving Functor
 
 type Expr = Fix ExpF
 
@@ -130,17 +123,24 @@ pattern App a b = Fix (AppF a b)
 pattern Lam :: Name -> Expr -> Expr
 pattern Lam x e = Fix (LamF (LambdaF x e))
 
-pattern Clo :: Env -> LambdaF Expr -> Expr
-pattern Clo e f = Fix (CloF (Closure e f))
+pattern Cls :: Env -> Expr -> Expr
+pattern Cls e f = Fix (ClsF (ClosureF e f))
 
-pattern Prm :: Name -> Name -> Expr -> Expr
-pattern Prm n x e = Fix (PrmF n (LambdaF x e))
+pattern Prm :: (Expr -> Expr) -> Expr
+pattern Prm p = Fix (PrmF p)
 
-pattern Thk :: Thunk Expr -> Expr
-pattern Thk t = Fix (ThkF t)
+{-# COMPLETE Lit, Sym, App, Lam, Cls, Prm #-}
 
-pattern Lambda :: Name -> Expr -> LambdaF Expr
+
+pattern Lambda :: Name -> Expr -> Lambda
 pattern Lambda x e = LambdaF x e
+
+{-# COMPLETE Lambda #-}
+
+pattern Closure :: Env -> Lambda -> Closure
+pattern Closure env f = ClosureF env f
+
+{-# COMPLETE Closure #-}
 
 -- class View a where
 --   proj :: ExpF a -> a

@@ -1,15 +1,13 @@
 module Eval where
 
 import Core
-import qualified Data.Map.Strict as Map
--- import Debug.Trace
--- import Reader (read)
 import Types
+
+import qualified Data.Map.Strict as Map
 
 data EvalError
   = ResolveFailure Name
   | CannotApply Expr Expr
-
 
 emptyEnv :: Env
 emptyEnv = Env Map.empty
@@ -17,54 +15,60 @@ emptyEnv = Env Map.empty
 -- emptyTypeEnv :: TypeEnv
 -- emptyTypeEnv = TypeEnv Map.empty
 
-type Eval a = ReaderT Env (StateT Env (Except EvalError)) a
+type Eval a = StateT Env (Except EvalError) a
 
 lookup :: Name -> Eval Expr
 lookup sym = do
-  (Env lexical) <- ask
-  (Env global)  <- get
-  case Map.lookup sym lexical of
-    Just e -> pure e
-    Nothing -> case Map.lookup sym global of
-      Just e -> pure e
-      Nothing -> throwError $ ResolveFailure sym
+  (Env env) <- get
+  case Map.lookup sym env of
+    Just e  -> pure e
+    Nothing -> throwError $ ResolveFailure sym
+
+resolve :: Name -> Eval Expr
+resolve a = do
+  e <- lookup a >>= eval
+  modify (scope e) *> pure e
+  where
+    scope e (Env env) = Env (Map.insert a e env)
+
+inEnv :: (Env -> Env) -> Eval Expr -> Eval Expr
+inEnv f expr = do
+  old <- get
+  modify f *> expr <* put old
 
 bind :: Name -> Expr -> Eval Expr -> Eval Expr
-bind sym e m = do
-  let scope (Env e') = Env $ Map.insert sym e e' in
-    local scope m
-
-apply :: Expr -> Expr -> Eval Expr
-apply (Lam x e) b = bind x b (eval e)
-apply e b = throwError $ CannotApply e b
+bind sym e m = inEnv (Env . Map.insert sym e . unEnv) m
 
 close :: Lambda -> Eval Expr
 close (Lambda x e) = do
-  bind x (Sym x) (close' e)
+  env <- get
+  Cls env . Lam x <$> bind x (Sym x) (close' e)
   where
     close' a@(Lit _  ) = pure a
     close' (Sym a    ) = lookup a
     close' (Lam x' e') = close (Lambda x' e')
-    close' (App a  b ) = do a' <- close' a; b' <- close' b; pure (App a' b')
-    close' _
-      = panic "Impossible pattern match"
-close _
-  = panic "Impossible pattern match"
+    close' (App a  b ) = App <$> close' a <*> close' b
+    close' (Cls _ _  ) = panic "Cannot close over a closure"
+    close' p@(Prm _  ) = pure p
 
-thunk :: Expr -> Eval Expr
-thunk e = do
-  Env lexical <- ask
-  Env global  <- get
-  let f = (Lambda (Name "_") e)
-  pure $ Thk $ Thunk $ Closure (Env (Map.union lexical global)) f
+apply :: Expr -> Expr -> Eval Expr
+apply f@(Lam _ _) b         = eval f >>= flip Eval.apply b
+apply (Cls env (Lam x e)) b = inEnv (const env) $ bind x b (eval e)
+apply e b                   = throwError $ CannotApply e b
 
 eval :: Expr -> Eval Expr
-eval a@(Lit _) = pure a
-eval (Sym a  ) = lookup a
-eval (Lam x e) = close (Lambda x e)
-eval (App a b) = do a' <- eval a; b' <- eval b; Eval.apply a' b'
-eval _
-  = panic "Impossible pattern match"
+eval a@(Lit _  ) = pure a
+eval (Sym a    ) = resolve a
+eval (Lam x e  ) = close (Lambda x e)
+eval (App a b  ) = Eval.apply a b
+eval c@(Cls _ _) = pure c
+eval p@(Prm _  ) = pure p
+
+runEval :: Expr -> Env -> Either EvalError Expr
+runEval e env =
+  case runExcept (runStateT (eval e) env) of
+    Left err      -> Left err
+    Right (e', _) -> Right e'
 
 -- data REPLError
 --   = TE TypeError

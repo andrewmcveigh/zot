@@ -17,8 +17,10 @@ import Protolude
   ( Bool(..)
   , Char
   , Eq
+  , Either(..)
   , Functor
   , Integer
+  , IO
   , Maybe(..)
   , Ord
   , Read
