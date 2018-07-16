@@ -94,10 +94,6 @@ data LambdaF a
 
 type Lambda = LambdaF Expr
 
-data Expression a
-  = Redex a
-  | Normal a
-
 data ExpF a
   = LitF Literal
   | SymF Name

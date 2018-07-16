@@ -39,10 +39,17 @@ apply (Lam x e) b = bind x b (eval e)
 apply e b = throwError $ CannotApply e b
 
 close :: Lambda -> Eval Expr
-close f = do
-  Env lexical <- ask
-  Env global  <- get
-  pure (Clo (Env (Map.union lexical global)) f)
+close (Lambda x e) = do
+  bind x (Sym x) (close' e)
+  where
+    close' a@(Lit _  ) = pure a
+    close' (Sym a    ) = lookup a
+    close' (Lam x' e') = close (Lambda x' e')
+    close' (App a  b ) = do a' <- close' a; b' <- close' b; pure (App a' b')
+    close' _
+      = panic "Impossible pattern match"
+close _
+  = panic "Impossible pattern match"
 
 thunk :: Expr -> Eval Expr
 thunk e = do
@@ -55,15 +62,7 @@ eval :: Expr -> Eval Expr
 eval a@(Lit _) = pure a
 eval (Sym a  ) = lookup a
 eval (Lam x e) = close (Lambda x e)
-eval (App a b) = do
-  a' <- eval a
-  case a' of
-    Prm _ x e -> Eval.apply (Lam x e) b
-    _         -> eval b >>= Eval.apply a'
-eval (Thk t  ) = pure (unThunk t)
-  where
-    unThunk (Thunk (Closure e f)) = Clo e f
-eval (Clo e f) = pure (Clo e f)
+eval (App a b) = do a' <- eval a; b' <- eval b; Eval.apply a' b'
 eval _
   = panic "Impossible pattern match"
 
