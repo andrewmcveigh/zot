@@ -83,10 +83,10 @@ is [] = return []
 is (x:xs) = do c <- satisfy (== x); cs <- is xs; return $ c : cs
 
 oneOf :: [Char] -> Parser Char
-oneOf s = satisfy (flip elem s)
+oneOf s = satisfy $ flip elem s
 
 noneOf :: [Char] -> Parser Char
-noneOf s = satisfy (not . (flip elem s))
+noneOf s = satisfy (not . flip elem s)
 
 whitespaceChars :: [Char]
 whitespaceChars = " \n\r\t"
@@ -104,10 +104,10 @@ tokenEnd :: Parser [Char]
 tokenEnd = whitespace <|> macroTerminating
 
 token :: Parser Text
-token = pack <$> (many $ noneOf (whitespaceChars ++ macroChars))
+token = pack <$> many (noneOf (whitespaceChars ++ macroChars))
 
 until :: Char -> Parser Text
-until c = pack <$> (many $ noneOf [c] <* (some $ oneOf [c]))
+until c = pack <$> many (noneOf [c] <* some (oneOf [c]))
 
 string :: Parser Expr
 string = is "\"" *> (Types.string <$> until '"')
@@ -176,6 +176,8 @@ expr =
 
 read :: Text -> Expr
 read = runParser expr
+
+-- runParser natural "1"
 
 -- tcon :: Parser Type
 -- tcon = do

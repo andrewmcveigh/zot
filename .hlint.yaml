@@ -36,3 +36,6 @@
 # This suggestion sometimes just makes the code look significantly worse
 - ignore:
     name: Use $>
+
+- ignore:
+    name: Use String

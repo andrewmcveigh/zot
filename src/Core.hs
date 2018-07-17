@@ -8,6 +8,7 @@ module Core
   , module Control.Monad.Except
   , module Control.Monad.Reader
   , module Control.Monad.State.Lazy
+  , module GHC.Show
   , map
   , read
   , undefined
@@ -25,7 +26,7 @@ import Protolude
   , Maybe(..)
   , Ord
   , Read
-  , Show
+  -- , Show
   , concatMap
   , const
   , elem
@@ -34,6 +35,7 @@ import Protolude
   , not
   , panic
   , readMaybe
+  -- , show
   , (.)
   , ($)
   , (++)
@@ -57,6 +59,11 @@ import Data.Text
   , null
   , pack
   , unpack
+  )
+
+import GHC.Show
+  ( Show(..)
+  , show
   )
 -- import qualified Data.Text as Text
 

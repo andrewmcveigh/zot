@@ -99,6 +99,14 @@ data ExpF a
   | PrmF (Expr -> Expr)
   deriving Functor
 
+instance Show a => Show (ExpF a) where
+  show (LitF x)   = show x
+  show (SymF x)   = show x
+  show (AppF f x) = "(" ++ show f ++ " " ++ show x ++ ")"
+  show (LamF f)   = show f -- "(fn. " ++ show x ++ " " ++ show e ++ ")"
+  show (ClsF _)   = "#<closure>"
+  show (PrmF _)   = "#<primitive>"
+
 type Expr = Fix ExpF
 
 data Meta = Meta
