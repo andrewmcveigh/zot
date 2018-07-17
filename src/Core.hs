@@ -3,6 +3,7 @@ module Core
   , module Control.Applicative
   , module Control.Lens
   , module Control.Monad
+  -- , module Data.Functor
   , module Data.Text
   , module Control.Monad.Except
   , module Control.Monad.Reader
@@ -46,6 +47,10 @@ import Control.Monad
 import Control.Monad.Except
 import Control.Monad.Reader
 import Control.Monad.State.Lazy
+
+-- import Data.Functor
+--   ( ($>)
+--   )
 
 import Data.Text
   ( Text

@@ -17,6 +17,10 @@ library
                       text >= 1.2
   hs-source-dirs:     src
   ghc-options:        -Wall
+                      -Wcompat
+                      -Wincomplete-record-updates
+                      -Wincomplete-uni-patterns
+                      -Wredundant-constraints
   default-extensions: PatternSynonyms
                       NoImplicitPrelude
                       OverloadedStrings

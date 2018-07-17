@@ -32,3 +32,7 @@
   - -XTypeOperators
 
 - fixity: "infixr 5 :|"
+
+# This suggestion sometimes just makes the code look significantly worse
+- ignore:
+    name: Use $>

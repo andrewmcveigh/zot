@@ -29,7 +29,6 @@ module Types
   , integer
   , string
   , apply
-  , lambda
   ) where
 
 import Core
@@ -73,7 +72,7 @@ data Literal
   | String  Text
   deriving Show
 
-newtype Env = Env { unEnv :: (Map Name Expr) }
+newtype Env = Env { unEnv :: Map Name Expr }
 
 data LambdaF a
   = LambdaF
@@ -187,11 +186,3 @@ symbol name = Fix (SymF (Name name))
 
 apply :: Expr -> Expr -> Expr
 apply f x = Fix (AppF f x)
-
-lambda :: Name -> Expr -> Expr
-lambda x e = Lam x e
-
-
--- mkLabel :: HuttonF Annotated -> Label
-
--- deriveShow1 ''ExpF

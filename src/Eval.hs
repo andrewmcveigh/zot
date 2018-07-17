@@ -37,7 +37,7 @@ inEnv f expr = do
   modify f *> expr <* put old
 
 bind :: Name -> Expr -> Eval Expr -> Eval Expr
-bind sym e m = inEnv (Env . Map.insert sym e . unEnv) m
+bind sym e = inEnv (Env . Map.insert sym e . unEnv)
 
 close :: Lambda -> Eval Expr
 close (Lambda x e) = do

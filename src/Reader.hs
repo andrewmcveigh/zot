@@ -50,7 +50,7 @@ combine :: Parser a -> Parser a -> Parser a
 combine p q = Parser (\s -> parse p s ++ parse q s)
 
 failure :: Parser a
-failure = Parser (\_ -> [])
+failure = Parser (const [])
 
 option :: Parser a -> Parser a -> Parser a
 option  p q = Parser $ \s ->
@@ -76,7 +76,7 @@ satisfy :: (Char -> Bool) -> Parser Char
 satisfy p = item `bind` \c ->
   if p c
   then unit c
-  else (Parser (\_ -> []))
+  else Parser (const [])
 
 is :: [Char] -> Parser [Char]
 is [] = return []
@@ -175,7 +175,7 @@ expr =
 -- toplevel = def
 
 read :: Text -> Expr
-read s = runParser expr s
+read = runParser expr
 
 -- tcon :: Parser Type
 -- tcon = do
