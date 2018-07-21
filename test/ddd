@@ -1,0 +1,7 @@
+((haskell-mode
+  . ((eval . (with-current-buffer (intero-buffer 'backend)
+               (intero-destroy)
+               (intero-get-worker-create
+                'backend
+                '("zot:lib" "zot:test:test")
+                (current-buffer)))))))
