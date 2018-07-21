@@ -1,6 +1,6 @@
 module Types
   ( Annotate(..)
-  , Ast
+  -- , Ast
   , Closure
   , Env(..)
   , Expr
@@ -8,6 +8,9 @@ module Types
   , Literal(..)
   , Meta(..)
   , Name(..)
+  , Primitive(..)
+  , Print(..)
+  , Token
   , Type
   , pattern App
   , pattern Arr
@@ -20,22 +23,46 @@ module Types
   , pattern Prm
   , pattern Sym
   , pattern Var
+  , bool
+  , integer
+  , keyword
+  , macroChars
+  , mkToken
+  , string
+  , symbol
+  , tarr
   , tcon
   , tvar
-  , tarr
-  , symbol
-  , bool
-  , keyword
-  , integer
-  , string
-  , apply
+  , unToken
+  , whitespaceChars
   ) where
 
 import Core
-import Data.Map.Lazy (Map)
 import Data.Functor.Foldable (Fix(..))
+import Data.Map.Lazy (Map)
+import Data.Set as Set
 
-newtype Name = Name Text deriving (Eq, Ord, Show)
+class Print x where
+  pr :: x -> Text
+
+newtype Token = Token { unToken :: Text }
+
+whitespaceChars :: [Char]
+whitespaceChars = " \n\r\t"
+
+macroChars :: [Char]
+macroChars = ",\";@^`~()[]{}\\"
+
+validToken :: Text -> Bool
+validToken s =
+  Set.empty == intersection invalidChars (fromList (unpack s))
+  where
+    invalidChars = fromList (whitespaceChars ++ macroChars)
+
+mkToken :: Text -> Maybe Token
+mkToken text = if validToken text then Just (Token text) else Nothing
+
+newtype Name = Name { unName :: Text } deriving (Eq, Show)
 
 data TypeF a
   = ConF Name
@@ -70,44 +97,62 @@ data Literal
   | Keyword Name
   | Integer Core.Integer
   | String  Text
-  deriving Show
+  deriving (Ord, Eq, Show)
 
-newtype Env = Env { unEnv :: Map Name Expr }
+instance Print Literal where
+  pr Unit               = "()"
+  pr (Boolean True)     = "True"
+  pr (Boolean False)    = "False"
+  pr (Keyword (Name t)) = ":" <> t
+  pr (Integer i)        = pack $ show i
+  pr (String t)         = "\"" <> t <> "\""
 
-data LambdaF a
-  = LambdaF
+newtype Env = Env { unEnv :: Map Name Expr } deriving (Eq, Show)
+
+data Lambda
+  = Lambda
     { _x :: Name
-    , _e :: a
-    } deriving (Functor, Show)
+    , _e :: Expr
+    } deriving (Eq, Show)
 
-type Lambda = LambdaF Expr
+instance Print Lambda where
+  pr (Lambda (Name x) e) = "(\"" <> x <> ". " <> pr e <> ")"
 
-data ClosureF a
-  = ClosureF
+-- type Lambda = LambdaF Expr
+
+data Closure
+  = Closure
     { _env :: Env
-    , _f   :: a
-    } deriving Functor
+    , _f   :: Lambda
+    } deriving (Eq, Show)
 
-type Closure = ClosureF Lambda
+-- type Closure = ClosureF Lambda
 
-data ExpF a
-  = LitF Literal
-  | SymF Name
-  | AppF a a
-  | LamF (LambdaF a)
-  | ClsF (ClosureF a)
-  | PrmF (Expr -> Expr)
-  deriving Functor
+newtype Primitive = Primitive (Expr -> Expr)
 
-instance Show a => Show (ExpF a) where
-  show (LitF x)   = show x
-  show (SymF x)   = show x
-  show (AppF f x) = "(" ++ show f ++ " " ++ show x ++ ")"
-  show (LamF f)   = show f -- "(fn. " ++ show x ++ " " ++ show e ++ ")"
-  show (ClsF _)   = "#<closure>"
-  show (PrmF _)   = "#<primitive>"
+instance Eq Primitive where
+  _ == _ = False
+instance Show Primitive where
+  show _ = "#<primitive>"
 
-type Expr = Fix ExpF
+data Expr
+  = Lit Literal
+  | Sym Name
+  | App Expr Expr
+  | Lam Lambda -- (LambdaF a)
+  | Cls Closure -- (ClosureF a)
+  | Prm Primitive
+  deriving (Eq, Show)
+
+instance Print Expr where
+  pr (Lit x)   = pr x
+  pr (Sym x)   = unName x
+  pr (App f x) = "(" <> pr f <> " " <> pr x <> ")"
+  pr (Lam f)   = pr f
+  pr (Cls _)   = "#<closure>"
+  pr (Prm _)   = "#<primitive>"
+
+-- type Expr = Fix ExpF
 
 data Meta = Meta
   { _label :: Text
@@ -116,38 +161,38 @@ data Meta = Meta
 
 data Annotate f = Annotate Meta (f (Annotate f))
 
-type Ast = Annotate ExpF
+-- type Ast = Annotate ExpF
 
-pattern Lit :: Literal -> Expr
-pattern Lit l = Fix (LitF l)
+-- pattern Lit :: Literal -> Expr
+-- pattern Lit l = Fix (LitF l)
 
-pattern Sym :: Name -> Expr
-pattern Sym s  = Fix (SymF s)
+-- pattern Sym :: Name -> Expr
+-- pattern Sym s  = Fix (SymF s)
 
-pattern App :: Expr -> Expr -> Expr
-pattern App a b = Fix (AppF a b)
+-- pattern App :: Expr -> Expr -> Expr
+-- pattern App a b = Fix (AppF a b)
 
-pattern Lam :: Name -> Expr -> Expr
-pattern Lam x e = Fix (LamF (LambdaF x e))
+-- pattern Lam :: Name -> Expr -> Expr
+-- pattern Lam x e = Fix (LamF (LambdaF x e))
 
-pattern Cls :: Env -> Expr -> Expr
-pattern Cls e f = Fix (ClsF (ClosureF e f))
+-- pattern Cls :: Env -> Expr -> Expr
+-- pattern Cls e f = Fix (ClsF (ClosureF e f))
 
-pattern Prm :: (Expr -> Expr) -> Expr
-pattern Prm p = Fix (PrmF p)
+-- pattern Prm :: (Expr -> Expr) -> Expr
+-- pattern Prm p = Fix (PrmF (Primitive p))
 
-{-# COMPLETE Lit, Sym, App, Lam, Cls, Prm #-}
+-- {-# COMPLETE Lit, Sym, App, Lam, Cls, Prm #-}
 
 
-pattern Lambda :: Name -> Expr -> Lambda
-pattern Lambda x e = LambdaF x e
+-- pattern Lambda :: Name -> Expr -> Lambda
+-- pattern Lambda x e = LambdaF x e
 
-{-# COMPLETE Lambda #-}
+-- {-# COMPLETE Lambda #-}
 
-pattern Closure :: Env -> Lambda -> Closure
-pattern Closure env f = ClosureF env f
+-- pattern Closure :: Env -> Lambda -> Closure
+-- pattern Closure env f = ClosureF env f
 
-{-# COMPLETE Closure #-}
+-- {-# COMPLETE Closure #-}
 
 -- class View a where
 --   proj :: ExpF a -> a
@@ -178,19 +223,16 @@ pattern Closure env f = ClosureF env f
 --   where Lam x e = inj (LamF x e)
 
 bool :: Bool -> Expr
-bool b = Fix (LitF (Boolean b))
+bool b = Lit (Boolean b)
 
 keyword :: Text -> Expr
-keyword name = Fix (LitF (Keyword (Name name)))
+keyword name = Lit (Keyword (Name name))
 
 integer :: Core.Integer -> Expr
-integer n = Fix (LitF (Integer n))
+integer n = Lit (Integer n)
 
 string :: Text -> Expr
-string s = Fix (LitF (String s))
+string s = Lit (String s)
 
-symbol :: Text -> Expr
-symbol name = Fix (SymF (Name name))
-
-apply :: Expr -> Expr -> Expr
-apply f x = Fix (AppF f x)
+symbol :: Token -> Expr
+symbol name = Sym (Name (unToken name))

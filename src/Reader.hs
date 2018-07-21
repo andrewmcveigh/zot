@@ -5,7 +5,8 @@ import Core
 import Data.Char (isDigit)
 -- import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
-import Types
+import Types hiding (mkToken)
+import qualified Types
 
 newtype Parser a = Parser { parse :: Text -> [(a, Text)] }
 
@@ -88,12 +89,6 @@ oneOf s = satisfy $ flip elem s
 noneOf :: [Char] -> Parser Char
 noneOf s = satisfy (not . flip elem s)
 
-whitespaceChars :: [Char]
-whitespaceChars = " \n\r\t"
-
-macroChars :: [Char]
-macroChars = ",\";@^`~()[]{}\\"
-
 whitespace :: Parser [Char]
 whitespace = many $ oneOf whitespaceChars
 
@@ -103,8 +98,13 @@ macroTerminating = some $ oneOf macroChars
 tokenEnd :: Parser [Char]
 tokenEnd = whitespace <|> macroTerminating
 
-token :: Parser Text
-token = pack <$> many (noneOf (whitespaceChars ++ macroChars))
+mkToken :: Text -> Parser Token
+mkToken text = case Types.mkToken text of
+  Just tk -> pure tk
+  Nothing -> failure
+
+token :: Parser Token
+token = pack <$> many (noneOf (whitespaceChars ++ macroChars)) >>= mkToken
 
 until :: Char -> Parser Text
 until c = pack <$> many (noneOf [c] <* some (oneOf [c]))
@@ -144,7 +144,7 @@ bracketed :: Parser a -> Parser a
 bracketed p = do _ <- openBracket; e <- p; _ <- closeBracket; return e
 
 application :: Parser Expr
-application = parenthesized $ apply <$> (expr <* whitespace) <*> expr
+application = parenthesized $ App <$> (expr <* whitespace) <*> expr
 
 -- tuple = parenthesized $ do
 --   e1 <- expr

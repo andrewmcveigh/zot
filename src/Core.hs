@@ -4,6 +4,7 @@ module Core
   , module Control.Lens
   , module Control.Monad
   -- , module Data.Functor
+  , module Data.Semigroup
   , module Data.Text
   , module Control.Monad.Except
   , module Control.Monad.Reader
@@ -32,6 +33,8 @@ import Protolude
   , elem
   , flip
   , fromMaybe
+  , isJust
+  , isNothing
   , not
   , panic
   , readMaybe
@@ -53,6 +56,9 @@ import Control.Monad.State.Lazy
 -- import Data.Functor
 --   ( ($>)
 --   )
+import Data.Semigroup
+  ( (<>)
+  )
 
 import Data.Text
   ( Text

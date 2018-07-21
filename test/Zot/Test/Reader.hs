@@ -5,7 +5,6 @@ import Reader
 import Types
 import Zot.Test.Instances()
 
-import Data.Set as Set
 import Test.Tasty
 -- import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck as QC
@@ -14,30 +13,32 @@ tests :: TestTree
 tests
   = testGroup
       "Reader tests"
-      [ prop_tokenRead
-      , prop_symbolRead
+      [ prop_symbolRead
+      , prop_roundTrip
       ]
 
-prop_tokenRead :: TestTree
-prop_tokenRead
-  = QC.testProperty "Token read" $
-      \s ->
-        nonTrivial (validToken s) $ runParser token s == s
+-- prop_tokenRead :: TestTree
+-- prop_tokenRead
+--   = QC.testProperty "Token read" $
+--       \s ->
+--         nonTrivial (isJust . tk $ s) $ runParser token s == tk s
+--   where
+--     tk = Types.mkToken
 
 prop_symbolRead :: TestTree
 prop_symbolRead
   = QC.testProperty "Symbol read" $
       \s ->
-        nonTrivial (validToken s) $
+        nonTrivial (isJust . Types.mkToken $ s) $
           case runParser Reader.symbol s of
             Sym _ -> True
             _     -> False
 
-validToken :: Text -> Bool
-validToken s =
-  Set.empty == intersection invalidChars (fromList (unpack s))
-  where
-    invalidChars = fromList (whitespaceChars ++ macroChars)
+prop_roundTrip :: TestTree
+prop_roundTrip
+  = QC.testProperty "expr -> print -> read -> expr == expr" $
+      \e ->
+        Reader.read (pr e) == e
 
 ignore :: Bool
 ignore = True

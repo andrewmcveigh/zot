@@ -21,16 +21,19 @@ library
                       -Wincomplete-record-updates
                       -Wincomplete-uni-patterns
                       -Wredundant-constraints
-  default-extensions: PatternSynonyms
-                      NoImplicitPrelude
-                      OverloadedStrings
-                      DeriveFunctor
-                      DeriveFoldable
-                      DeriveTraversable
-                      DeriveAnyClass
-                      ViewPatterns
-                      MultiParamTypeClasses
-                      LambdaCase
+  default-extensions:
+    DeriveAnyClass
+    DeriveFoldable
+    DeriveFunctor
+    DeriveTraversable
+    FlexibleInstances
+    LambdaCase
+    MultiParamTypeClasses
+    NoImplicitPrelude
+    OverloadedStrings
+    PatternSynonyms
+    TypeSynonymInstances
+    ViewPatterns
 
 test-suite test
   default-language:
@@ -54,13 +57,15 @@ test-suite test
     -Wincomplete-uni-patterns
     -Wredundant-constraints
   default-extensions:
-    PatternSynonyms
+    DeriveAnyClass
+    DeriveFoldable
+    DeriveFunctor
+    DeriveTraversable
+    FlexibleInstances
+    LambdaCase
+    MultiParamTypeClasses
     NoImplicitPrelude
     OverloadedStrings
-    DeriveFunctor
-    DeriveFoldable
-    DeriveTraversable
-    DeriveAnyClass
+    PatternSynonyms
+    TypeSynonymInstances
     ViewPatterns
-    MultiParamTypeClasses
-    LambdaCase
