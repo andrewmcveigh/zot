@@ -2,12 +2,14 @@ module Zot.Test.Reader where
 
 import Core
 import Reader
-import Types
+import Reader.Types
 import Zot.Test.Instances()
 
 import Test.Tasty
 -- import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck as QC
+
+import Debug.Trace
 
 tests :: TestTree
 tests
@@ -29,7 +31,7 @@ prop_symbolRead :: TestTree
 prop_symbolRead
   = QC.testProperty "Symbol read" $
       \s ->
-        nonTrivial (isJust . Types.mkToken $ s) $
+        nonTrivial (isJust . mkToken $ s) $
           case runParser Reader.symbol s of
             Sym _ -> True
             _     -> False
@@ -38,6 +40,7 @@ prop_roundTrip :: TestTree
 prop_roundTrip
   = QC.testProperty "expr -> print -> read -> expr == expr" $
       \e ->
+        traceShow (pr e) $ traceShow e $
         Reader.read (pr e) == e
 
 ignore :: Bool

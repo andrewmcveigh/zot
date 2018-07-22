@@ -10,6 +10,7 @@ module Core
   , module Control.Monad.Reader
   , module Control.Monad.State.Lazy
   , module GHC.Show
+  , Print(..)
   , map
   , read
   , undefined
@@ -43,6 +44,8 @@ import Protolude
   , ($)
   , (++)
   , (==)
+  , (||)
+  , (&&)
   )
 import qualified Protolude as X
 
@@ -58,6 +61,7 @@ import Control.Monad.State.Lazy
 --   )
 import Data.Semigroup
   ( (<>)
+  , sconcat
   )
 
 import Data.Text
@@ -65,6 +69,8 @@ import Data.Text
   , null
   , pack
   , unpack
+  , unwords
+  , words
   )
 
 import GHC.Show
@@ -81,3 +87,6 @@ read = X.readMaybe . unpack
 
 undefined :: a
 undefined = panic "undefined"
+
+class Print x where
+  pr :: x -> Text

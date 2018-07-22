@@ -7,7 +7,7 @@ module Types
   , Lambda
   , Literal(..)
   , Meta(..)
-  , Name(..)
+  , Name
   , Primitive(..)
   , Print(..)
   , Token
@@ -23,46 +23,16 @@ module Types
   , pattern Prm
   , pattern Sym
   , pattern Var
-  , bool
-  , integer
-  , keyword
-  , macroChars
-  , mkToken
-  , string
-  , symbol
   , tarr
   , tcon
   , tvar
-  , unToken
-  , whitespaceChars
   ) where
 
 import Core
+import Reader.Types (Literal(..), Name, Token, unName)
+
 import Data.Functor.Foldable (Fix(..))
 import Data.Map.Lazy (Map)
-import Data.Set as Set
-
-class Print x where
-  pr :: x -> Text
-
-newtype Token = Token { unToken :: Text }
-
-whitespaceChars :: [Char]
-whitespaceChars = " \n\r\t"
-
-macroChars :: [Char]
-macroChars = ",\";@^`~()[]{}\\"
-
-validToken :: Text -> Bool
-validToken s =
-  Set.empty == intersection invalidChars (fromList (unpack s))
-  where
-    invalidChars = fromList (whitespaceChars ++ macroChars)
-
-mkToken :: Text -> Maybe Token
-mkToken text = if validToken text then Just (Token text) else Nothing
-
-newtype Name = Name { unName :: Text } deriving (Eq, Show)
 
 data TypeF a
   = ConF Name
@@ -91,22 +61,6 @@ tarr :: Type -> Type -> Type
 tarr f x = Fix (f `ArrF` x)
 
 
-data Literal
-  = Unit
-  | Boolean Bool
-  | Keyword Name
-  | Integer Core.Integer
-  | String  Text
-  deriving (Ord, Eq, Show)
-
-instance Print Literal where
-  pr Unit               = "()"
-  pr (Boolean True)     = "True"
-  pr (Boolean False)    = "False"
-  pr (Keyword (Name t)) = ":" <> t
-  pr (Integer i)        = pack $ show i
-  pr (String t)         = "\"" <> t <> "\""
-
 newtype Env = Env { unEnv :: Map Name Expr } deriving (Eq, Show)
 
 data Lambda
@@ -116,7 +70,8 @@ data Lambda
     } deriving (Eq, Show)
 
 instance Print Lambda where
-  pr (Lambda (Name x) e) = "(\"" <> x <> ". " <> pr e <> ")"
+  pr (Lambda (unName -> x) e) = "(λ" <> x <> ". " <> pr e <> ")"
+-- A Lambda is syntactic, but can be destructured at the syntax level
 
 -- type Lambda = LambdaF Expr
 
@@ -221,18 +176,3 @@ data Annotate f = Annotate Meta (f (Annotate f))
 -- pattern Lam :: Name -> Expr -> Expr
 -- pattern Lam x e <- (proj -> LamF x e)
 --   where Lam x e = inj (LamF x e)
-
-bool :: Bool -> Expr
-bool b = Lit (Boolean b)
-
-keyword :: Text -> Expr
-keyword name = Lit (Keyword (Name name))
-
-integer :: Core.Integer -> Expr
-integer n = Lit (Integer n)
-
-string :: Text -> Expr
-string s = Lit (String s)
-
-symbol :: Token -> Expr
-symbol name = Sym (Name (unToken name))

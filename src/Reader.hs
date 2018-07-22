@@ -1,20 +1,18 @@
+{-# OPTIONS_GHC -fno-warn-orphans #-}
+
 module Reader where
 
 import Core
+import Reader.Types
 
 import Data.Char (isDigit)
--- import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
-import Types hiding (mkToken)
-import qualified Types
-
-newtype Parser a = Parser { parse :: Text -> [(a, Text)] }
 
 runParser :: Parser a -> Text -> a
 runParser m s =
   case parse m s of
     [(res, null -> True)] -> res
-    [(_,   _)]            -> panic "Parser did not consume entire stream."
+    [(_, s')]             -> panic ("Parser did not consume entire stream." <> s')
     _                     -> panic "Parser error."
 
 item :: Parser Char
@@ -22,61 +20,10 @@ item = Parser $ \case
   (null -> True) -> []
   text           -> [(Text.head text, Text.tail text)]
 
-bind :: Parser a -> (a -> Parser b) -> Parser b
-bind p f = Parser $ \s -> concatMap (\(a, s') -> parse (f a) s') $ parse p s
-
-unit :: a -> Parser a
-unit a = Parser (\s -> [(a, s)])
-
-instance Functor Parser where
-  fmap f (Parser cs) = Parser (\s -> [(f a, b) | (a, b) <- cs s])
-
-instance Applicative Parser where
-  pure = return
-  (Parser cs1) <*> (Parser cs2) = Parser (\s -> [(f a, s2) | (f, s1) <- cs1 s, (a, s2) <- cs2 s1])
-
-instance Monad Parser where
-  return = unit
-  (>>=)  = bind
-
-instance MonadPlus Parser where
-  mzero = failure
-  mplus = combine
-
-instance Alternative Parser where
-  empty = mzero
-  (<|>) = option
-
-combine :: Parser a -> Parser a -> Parser a
-combine p q = Parser (\s -> parse p s ++ parse q s)
-
-failure :: Parser a
-failure = Parser (const [])
-
-option :: Parser a -> Parser a -> Parser a
-option  p q = Parser $ \s ->
-  case parse p s of
-    []     -> parse q s
-    res    -> res
-
--- -- | One or more.
--- some :: Alternative f => f a -> f [a]
--- some v = some_v
---   where
---     many_v = some_v <|> pure []
---     some_v = (:) <$> v <*> many_v
-
--- -- | Zero or more.
--- many :: f a -> f [a]
--- many v = many_v
---   where
---     many_v = some_v <|> pure []
---     some_v = (:) <$> v <*> many_v
-
 satisfy :: (Char -> Bool) -> Parser Char
-satisfy p = item `bind` \c ->
+satisfy p = item >>= \c ->
   if p c
-  then unit c
+  then pure c
   else Parser (const [])
 
 is :: [Char] -> Parser [Char]
@@ -98,32 +45,40 @@ macroTerminating = some $ oneOf macroChars
 tokenEnd :: Parser [Char]
 tokenEnd = whitespace <|> macroTerminating
 
-mkToken :: Text -> Parser Token
-mkToken text = case Types.mkToken text of
-  Just tk -> pure tk
-  Nothing -> failure
+fromMaybe :: Maybe a -> Parser a
+fromMaybe (Just x) = pure x
+fromMaybe Nothing  = failure
 
 token :: Parser Token
-token = pack <$> many (noneOf (whitespaceChars ++ macroChars)) >>= mkToken
+token = pack <$> many (noneOf (whitespaceChars ++ macroChars))
+  >>= Reader.fromMaybe . mkToken
 
 until :: Char -> Parser Text
 until c = pack <$> many (noneOf [c] <* some (oneOf [c]))
 
-string :: Parser Expr
-string = is "\"" *> (Types.string <$> until '"')
+string :: Parser Syntax
+string = is "\"" *> (Lit . String <$> until '"')
 
-symbol :: Parser Expr
-symbol = Types.symbol <$> token
+unit :: Parser Syntax
+unit = is "()" *> pure (Lit Unit)
 
-natural :: Parser Expr
-natural = do
-  txt <- some $ satisfy isDigit
+symbol :: Parser Syntax
+symbol = Sym . fromToken <$> token
+
+name :: Parser Name
+name = fromToken <$> token
+
+integer :: Parser Syntax
+integer = do
+  txt <- some $ satisfy isNumChar
   case Core.read $ pack txt of
-    Just i -> pure $ integer i
+    Just i -> pure . Lit . Integer $ i
     Nothing -> failure
+  where
+    isNumChar c = isDigit c || c == '-'
 
-delimited :: Char -> Parser Expr
-delimited c = expr <* oneOf [c]
+delimited :: Char -> Parser Syntax
+delimited c = syntax <* oneOf [c]
 
 openParen :: Parser Char
 openParen = oneOf "("
@@ -143,8 +98,19 @@ closeBracket = oneOf "]"
 bracketed :: Parser a -> Parser a
 bracketed p = do _ <- openBracket; e <- p; _ <- closeBracket; return e
 
-application :: Parser Expr
-application = parenthesized $ App <$> (expr <* whitespace) <*> expr
+lambda :: Parser Syntax
+lambda = parenthesized $ Lam <$> lambda'
+  where
+    binding = is "\\" *> name <* is "." <* whitespace
+    lambda' = Lambda <$> binding <*> syntax
+
+sexp :: Parser Syntax
+sexp
+  = parenthesized $ Sxp . toSexp <$> some (whitespace *> syntax <* whitespace)
+  where
+    toSexp []     = panic "Impossible"
+    toSexp [x]    = Last x
+    toSexp (x:xs) = Sexp x (toSexp xs)
 
 -- tuple = parenthesized $ do
 --   e1 <- expr
@@ -154,13 +120,14 @@ application = parenthesized $ App <$> (expr <* whitespace) <*> expr
 --   e2 <- expr
 --   return $ Fix $ Tup e1 e2
 
-expr :: Parser Expr
-expr =
-      application
-  -- <|> tuple
-  <|> Reader.string
-  <|> natural
-  <|> Reader.symbol
+syntax :: Parser Syntax
+syntax
+  =   unit
+  <|> string
+  <|> integer
+  <|> symbol
+  <|> lambda
+  <|> sexp
 
 -- def :: Parser Def
 -- def = do
@@ -174,8 +141,8 @@ expr =
 -- toplevel :: Parser Def
 -- toplevel = def
 
-read :: Text -> Expr
-read = runParser expr
+read :: Text -> Syntax
+read = runParser syntax
 
 -- runParser natural "1"
 

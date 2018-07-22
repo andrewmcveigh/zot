@@ -42,26 +42,29 @@ bind sym e = inEnv (Env . Map.insert sym e . unEnv)
 close :: Lambda -> Eval Expr
 close (Lambda x e) = do
   env <- get
-  Cls env . Lam x <$> bind x (Sym x) (close' e)
+  Cls . Closure env . Lambda x <$> bind x (Sym x) (close' e)
   where
-    close' a@(Lit _  ) = pure a
-    close' (Sym a    ) = lookup a
-    close' (Lam x' e') = close (Lambda x' e')
-    close' (App a  b ) = App <$> close' a <*> close' b
-    close' (Cls _ _  ) = panic "Cannot close over a closure"
-    close' p@(Prm _  ) = pure p
+    close' a@(Lit _ ) = pure a
+    close' (Sym a   ) = lookup a
+    close' (Lam f   ) = close f
+    close' (App a  b) = App <$> close' a <*> close' b
+    close' (Cls _   ) = panic "Cannot close over a closure"
+    close' p@(Prm _ ) = pure p
 
 apply :: Expr -> Expr -> Eval Expr
-apply f@(Lam _ _) b         = eval f >>= flip Eval.apply b
-apply (Cls env (Lam x e)) b = inEnv (const env) $ bind x b (eval e)
-apply e b                   = throwError $ CannotApply e b
+apply f@(Lam _) b =
+  eval f >>= flip Eval.apply b
+apply (Cls (Closure env (Lambda x e))) b =
+  inEnv (const env) $ bind x b (eval e)
+apply e b =
+  throwError $ CannotApply e b
 
 eval :: Expr -> Eval Expr
 eval a@(Lit _  ) = pure a
 eval (Sym a    ) = resolve a
-eval (Lam x e  ) = close (Lambda x e)
+eval (Lam f    ) = close f
 eval (App a b  ) = Eval.apply a b
-eval c@(Cls _ _) = pure c
+eval c@(Cls _  ) = pure c
 eval p@(Prm _  ) = pure p
 
 runEval :: Expr -> Env -> Either EvalError Expr
