@@ -8,6 +8,7 @@ import Zot.Test.Instances()
 import Test.Tasty
 -- import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck as QC
+import Data.Text as Text
 
 import Debug.Trace
 
@@ -15,7 +16,9 @@ tests :: TestTree
 tests
   = testGroup
       "Reader tests"
-      [ prop_stringRead
+      [ prop_is
+      , prop_until
+      , prop_stringRead
       , prop_symbolRead
       , prop_nameRead
       , prop_lambdaBinding
@@ -33,6 +36,21 @@ tests
 --   where
 --     tk = Types.mkToken
 
+prop_is :: TestTree
+prop_is
+  = QC.testProperty "is" $
+      \s ->
+        runParser (is s) (pack s) == s
+
+prop_until :: TestTree
+prop_until
+  = QC.testProperty "until" $
+      forAll gen $ \s ->
+        runParser (until '"' <* is "\"") s == Text.init s
+  where
+    gen   = end <$> arbitrary `suchThat` \s -> '"' `notElem` unpack s
+    end s = s <> "\""
+
 prop_stringRead :: TestTree
 prop_stringRead
   = QC.testProperty "String read" $
@@ -42,7 +60,7 @@ prop_stringRead
             Lit (String _) -> True
             _              -> False
   where
-    gen    = wrap <$> arbitrary
+    gen    = wrap <$> arbitrary `suchThat` \s -> '"' `notElem` unpack s
     wrap s = "\"" <> s <>  "\""
 
 prop_symbolRead :: TestTree

@@ -27,8 +27,7 @@ satisfy p = item >>= \c ->
   else Parser (const [])
 
 is :: [Char] -> Parser [Char]
-is [] = return []
-is (x:xs) = do c <- satisfy (== x); cs <- is xs; return $ c : cs
+is = foldr (\x -> (<*>) ((:) <$> satisfy (== x))) (pure [])
 
 oneOf :: [Char] -> Parser Char
 oneOf s = satisfy $ flip elem s
@@ -55,7 +54,7 @@ token =
     Reader.fromMaybe . mkToken
 
 until :: Char -> Parser Text
-until c = pack <$> many (noneOf [c]) <* oneOf [c]
+until c = pack <$> many (satisfy (/= c))
 
 string :: Parser Syntax
 string = is "\"" *> (Lit . String <$> until '"') <* is "\""

@@ -33,10 +33,13 @@ import Protolude
   , const
   , elem
   , flip
+  , foldl
+  , foldr
   , fromMaybe
   , isJust
   , isNothing
   , not
+  , notElem
   , panic
   , readMaybe
   -- , show
@@ -44,6 +47,7 @@ import Protolude
   , ($)
   , (++)
   , (==)
+  , (/=)
   , (||)
   , (&&)
   )
