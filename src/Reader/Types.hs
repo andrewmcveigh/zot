@@ -6,11 +6,13 @@ module Reader.Types
   , Sexp(..)
   , Syntax(..)
   , Token
+  , pattern Name
   , failure
   , fromToken
   , macroChars
   , mkName
   , mkToken
+  , tokenChars
   , unName
   , unToken
   , whitespaceChars
@@ -20,6 +22,7 @@ module Reader.Types
 import Core
 
 import Data.Set as Set
+import qualified Data.Text as Text
 
 newtype Token = Token { unToken :: Text }
 
@@ -41,7 +44,8 @@ tokenChars = ['a'..'z'] <> ['A'..'Z'] <> ['0'..'9'] <> punctuation <> greek
 validToken :: Text -> Bool
 validToken (Core.null -> True) = False
 validToken s =
-  intersection allowed original == original
+  intersection allowed original == original &&
+  Text.head s `elem` ['a'..'z']
   where
     allowed  = fromList tokenChars
     original = fromList (unpack s)
@@ -49,10 +53,13 @@ validToken s =
 mkToken :: Text -> Maybe Token
 mkToken text = if validToken text then Just (Token text) else Nothing
 
-newtype Name = Name { unName :: Text } deriving (Eq, Ord, Show)
+newtype Name = MkName { unName :: Text } deriving (Eq, Ord, Show)
+pattern Name :: Text -> Name
+pattern Name t <- MkName t
+{-# COMPLETE Name #-}
 
 fromToken :: Token -> Name
-fromToken = Name . unToken
+fromToken = MkName . unToken
 
 mkName :: Text -> Maybe Name
 mkName text = fromToken <$> mkToken text

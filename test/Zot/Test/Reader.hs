@@ -15,11 +15,17 @@ tests :: TestTree
 tests
   = testGroup
       "Reader tests"
-      [ prop_symbolRead
+      [ prop_stringRead
+      , prop_symbolRead
+      , prop_nameRead
+      , prop_lambdaBinding
+      , prop_parenthesized
+      , prop_whitespaced
       , prop_roundTrip
       ]
 
--- prop_tokenRead :: TestTree
+
+-- prop_tokenRead :: TestTree]
 -- prop_tokenRead
 --   = QC.testProperty "Token read" $
 --       \s ->
@@ -27,14 +33,71 @@ tests
 --   where
 --     tk = Types.mkToken
 
+prop_stringRead :: TestTree
+prop_stringRead
+  = QC.testProperty "String read" $
+      forAll gen $
+        \s ->
+          case runParser string s of
+            Lit (String _) -> True
+            _              -> False
+  where
+    gen    = wrap <$> arbitrary
+    wrap s = "\"" <> s <>  "\""
+
 prop_symbolRead :: TestTree
 prop_symbolRead
   = QC.testProperty "Symbol read" $
       \s ->
         nonTrivial (isJust . mkToken $ s) $
-          case runParser Reader.symbol s of
+          case runParser symbol s of
             Sym _ -> True
             _     -> False
+
+prop_nameRead :: TestTree
+prop_nameRead
+  = QC.testProperty "Name read" $
+      \s ->
+        nonTrivial (isJust $ fromToken <$> mkToken s) $
+          case runParser name s of
+            Name _ -> True
+            _      -> False
+
+prop_lambdaBinding :: TestTree
+prop_lambdaBinding
+  = testProperty "Lambda binding read" $
+      forAll gen $
+        \s ->
+          case runParser lambdaBinding s of
+            Name _ -> True
+            _      -> False
+  where
+    gen    = wrap . unName <$> arbitrary
+    wrap x = "\\" <> x <> "."
+
+prop_parenthesized :: TestTree
+prop_parenthesized
+  = testProperty "Parenthesized (Name) read" $
+      forAll gen $
+        \s ->
+          case runParser (parenthesized name) s of
+            Name _ -> True
+            _      -> False
+  where
+    gen    = wrap . unName <$> arbitrary
+    wrap x = "(" <> x <> ")"
+
+prop_whitespaced :: TestTree
+prop_whitespaced
+  = testProperty "Whitespaced (Name) read" $
+      forAll gen $
+        \s ->
+          case runParser (whitespaced name) s of
+            Name _ -> True
+            _      -> False
+  where
+    gen    = wrap . unName <$> arbitrary
+    wrap x = " " <> x <> " "
 
 prop_roundTrip :: TestTree
 prop_roundTrip

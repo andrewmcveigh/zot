@@ -50,14 +50,15 @@ fromMaybe (Just x) = pure x
 fromMaybe Nothing  = failure
 
 token :: Parser Token
-token = pack <$> many (noneOf (whitespaceChars ++ macroChars))
-  >>= Reader.fromMaybe . mkToken
+token =
+  pack <$> many (oneOf tokenChars) >>=
+    Reader.fromMaybe . mkToken
 
 until :: Char -> Parser Text
-until c = pack <$> many (noneOf [c] <* some (oneOf [c]))
+until c = pack <$> many (noneOf [c]) <* oneOf [c]
 
 string :: Parser Syntax
-string = is "\"" *> (Lit . String <$> until '"')
+string = is "\"" *> (Lit . String <$> until '"') <* is "\""
 
 unit :: Parser Syntax
 unit = is "()" *> pure (Lit Unit)
@@ -80,14 +81,11 @@ integer = do
 delimited :: Char -> Parser Syntax
 delimited c = syntax <* oneOf [c]
 
-openParen :: Parser Char
-openParen = oneOf "("
-
-closeParen :: Parser Char
-closeParen = oneOf ")"
-
 parenthesized :: Parser a -> Parser a
-parenthesized p = do _ <- openParen; e <- p; _ <- closeParen; return e
+parenthesized p = oneOf "(" *> p <* oneOf ")"
+
+whitespaced :: Parser a -> Parser a
+whitespaced p = whitespace *> p <* whitespace
 
 openBracket :: Parser Char
 openBracket = oneOf "["
@@ -98,15 +96,15 @@ closeBracket = oneOf "]"
 bracketed :: Parser a -> Parser a
 bracketed p = do _ <- openBracket; e <- p; _ <- closeBracket; return e
 
+lambdaBinding :: Parser Name
+lambdaBinding = is "\\" *> name <* is "."
+
 lambda :: Parser Syntax
-lambda = parenthesized $ Lam <$> lambda'
-  where
-    binding = is "\\" *> name <* is "." <* whitespace
-    lambda' = Lambda <$> binding <*> syntax
+lambda = parenthesized $ Lam <$> (Lambda <$> lambdaBinding <*> syntax)
 
 sexp :: Parser Syntax
 sexp
-  = parenthesized $ Sxp . toSexp <$> some (whitespace *> syntax <* whitespace)
+  = parenthesized $ Sxp . toSexp <$> some syntax
   where
     toSexp []     = panic "Impossible"
     toSexp [x]    = Last x
@@ -121,8 +119,9 @@ sexp
 --   return $ Fix $ Tup e1 e2
 
 syntax :: Parser Syntax
-syntax
-  =   unit
+syntax =
+  whitespaced $
+      unit
   <|> string
   <|> integer
   <|> symbol
