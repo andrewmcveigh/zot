@@ -6,7 +6,7 @@ import Reader.Types
 import Zot.Test.Instances()
 
 import Test.Tasty
--- import Test.Tasty.HUnit
+import Test.Tasty.HUnit
 import Test.Tasty.QuickCheck as QC
 import Data.Text as Text
 
@@ -24,7 +24,10 @@ tests
       , prop_lambdaBinding
       , prop_parenthesized
       , prop_whitespaced
-      , prop_roundTrip
+      -- , prop_sexp
+      -- , prop_lambda
+      -- , prop_roundTrip
+      , test_syntax
       ]
 
 
@@ -57,8 +60,8 @@ prop_stringRead
       forAll gen $
         \s ->
           case runParser string s of
-            Lit (String _) -> True
-            _              -> False
+            String _ -> True
+            _        -> False
   where
     gen    = wrap <$> arbitrary `suchThat` \s -> '"' `notElem` unpack s
     wrap s = "\"" <> s <>  "\""
@@ -116,6 +119,63 @@ prop_whitespaced
   where
     gen    = wrap . unName <$> arbitrary
     wrap x = " " <> x <> " "
+
+test_syntax :: TestTree
+test_syntax
+  = testCase "syntax read" $ do
+      assertBool "Parse a symbol" $
+        isSymbol $ runParser syntax "x"
+      assertBool "Parse a whitespaced symbol" $
+        isSymbol $ runParser syntax " x "
+      assertBool "Parse a left whitespaced symbol" $
+        isSymbol $ runParser syntax " x"
+      assertBool "Parse a right whitespaced symbol" $
+        isSymbol $ runParser syntax "x "
+      assertBool "Parse a keyword" $
+        isKeyword $ runParser syntax ":x"
+      assertBool "Parse a whitespaced keyword" $
+        isKeyword $ runParser syntax " :x "
+      assertBool "Parse a left whitespaced keyword" $
+        isKeyword $ runParser syntax " :x"
+      assertBool "Parse a right whitespaced keyword" $
+        isKeyword $ runParser syntax ":x "
+      assertBool "Parse the identity lambda" $
+        isLambda $ runParser syntax "(\\x. x)"
+  where
+    isSymbol  (Sym _)           = True
+    isSymbol  _                 = False
+    isKeyword (Lit (Keyword _)) = True
+    isKeyword _                 = False
+    isLambda  (Lam _)           = True
+    isLambda  _                 = False
+
+prop_sexp :: TestTree
+prop_sexp
+  = testProperty "Sexp read" $
+      forAll gen $
+        \s ->
+          case runParser sexp s of
+            Sxp _ -> True
+            _     -> False
+  where
+    gen = do
+      f <- arbitrary :: Gen Name
+      x <- arbitrary :: Gen Name
+      pure ("(" <> unName f <> " " <> unName x <> ")")
+
+prop_lambda :: TestTree
+prop_lambda
+  = testProperty "Lambda read" $
+      forAll gen $
+        \s ->
+          case runParser lambda s of
+            Lam _ -> True
+            _     -> False
+  where
+    gen = do
+      f <- arbitrary :: Gen Name
+      x <- arbitrary :: Gen Name
+      pure ("(\\" <> unName f <> ". " <> unName x <> ")")
 
 prop_roundTrip :: TestTree
 prop_roundTrip

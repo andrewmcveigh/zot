@@ -8,6 +8,8 @@ import Reader.Types
 import Data.Char (isDigit)
 import qualified Data.Text as Text
 
+import Debug.Trace
+
 runParser :: Parser a -> Text -> a
 runParser m s =
   case parse m s of
@@ -42,7 +44,7 @@ macroTerminating :: Parser [Char]
 macroTerminating = some $ oneOf macroChars
 
 tokenEnd :: Parser [Char]
-tokenEnd = whitespace <|> macroTerminating
+tokenEnd = whitespace <|> macroTerminating <|> is "."
 
 fromMaybe :: Maybe a -> Parser a
 fromMaybe (Just x) = pure x
@@ -56,32 +58,54 @@ token =
 until :: Char -> Parser Text
 until c = pack <$> many (satisfy (/= c))
 
-string :: Parser Syntax
-string = is "\"" *> (Lit . String <$> until '"') <* is "\""
+untilP :: Parser [Char] -> Parser a -> Parser [[Char]]
+untilP p p' = many p <* p'
 
-unit :: Parser Syntax
-unit = is "()" *> pure (Lit Unit)
+string :: Parser Literal
+string = is "\"" *> (String <$> until '"') <* is "\""
+
+unit :: Parser Literal
+unit = is "()" *> pure Unit
 
 symbol :: Parser Syntax
 symbol = Sym . fromToken <$> token
 
+keyword :: Parser Literal
+keyword = Keyword . fromToken <$> (is ":" *> token)
+
 name :: Parser Name
 name = fromToken <$> token
 
-integer :: Parser Syntax
+integer :: Parser Literal
 integer = do
   txt <- some $ satisfy isNumChar
   case Core.read $ pack txt of
-    Just i -> pure . Lit . Integer $ i
+    Just i -> pure . Integer $ i
     Nothing -> failure
   where
     isNumChar c = isDigit c || c == '-'
+
+bool :: Parser Literal
+bool =
+      is "true"  *> pure (Boolean True)
+  <|> is "false" *> pure (Boolean False)
+
+literal :: Parser Literal
+literal =
+      unit
+  <|> string
+  <|> keyword
+  <|> integer
+  <|> bool
+
+lit :: Parser Syntax
+lit = Lit <$> literal
 
 delimited :: Char -> Parser Syntax
 delimited c = syntax <* oneOf [c]
 
 parenthesized :: Parser a -> Parser a
-parenthesized p = oneOf "(" *> p <* oneOf ")"
+parenthesized p = is "(" *> p <* is ")"
 
 whitespaced :: Parser a -> Parser a
 whitespaced p = whitespace *> p <* whitespace
@@ -96,10 +120,18 @@ bracketed :: Parser a -> Parser a
 bracketed p = do _ <- openBracket; e <- p; _ <- closeBracket; return e
 
 lambdaBinding :: Parser Name
-lambdaBinding = is "\\" *> name <* is "."
+lambdaBinding = do
+  _ <- is "\\"
+  n <- trace "HHH" name
+  _ <- traceShow ("HHHH" <> unName n) $ is ". "
+  pure n
 
 lambda :: Parser Syntax
-lambda = parenthesized $ Lam <$> (Lambda <$> lambdaBinding <*> syntax)
+lambda = do
+  _ <- is "("
+  x <- trace "Here!" lambdaBinding
+  _ <- trace "Here2!" $ is ")"
+  Lam . Lambda x <$> traceShow x syntax
 
 sexp :: Parser Syntax
 sexp
@@ -120,9 +152,7 @@ sexp
 syntax :: Parser Syntax
 syntax =
   whitespaced $
-      unit
-  <|> string
-  <|> integer
+      lit
   <|> symbol
   <|> lambda
   <|> sexp
