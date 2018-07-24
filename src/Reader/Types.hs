@@ -2,12 +2,10 @@ module Reader.Types
   ( Lambda(..)
   , Literal(..)
   , Name
-  , Parser(..)
   , Sexp(..)
   , Syntax(..)
   , Token
   , pattern Name
-  , failure
   , fromToken
   , macroChars
   , mkName
@@ -51,7 +49,7 @@ validToken s =
     original = fromList (unpack s)
 
 mkToken :: Text -> Maybe Token
-mkToken text = if validToken text then Just (Token text) else Nothing
+mkToken t = if validToken t then Just (Token t) else Nothing
 
 newtype Name = MkName { unName :: Text } deriving (Eq, Ord, Show)
 pattern Name :: Text -> Name
@@ -62,7 +60,7 @@ fromToken :: Token -> Name
 fromToken = MkName . unToken
 
 mkName :: Text -> Maybe Name
-mkName text = fromToken <$> mkToken text
+mkName t = fromToken <$> mkToken t
 
 data Literal
   = Unit
@@ -110,42 +108,3 @@ instance Print Syntax where
   pr (Sym x)  = unName x
   pr (Lam f)  = pr f
   pr (Sxp xs) = "(" <> pr xs <> ")"
-
-newtype Parser a = Parser { parse :: Text -> [(a, Text)] }
-
-instance Functor Parser where
-  fmap f (Parser cs) = Parser (\s -> [(f a, b) | (a, b) <- cs s])
-
-instance Applicative Parser where
-  pure = return
-  (Parser cs1) <*> (Parser cs2) = Parser (\s -> [(f a, s2) | (f, s1) <- cs1 s, (a, s2) <- cs2 s1])
-
-instance Monad Parser where
-  return = unit
-  (>>=)  = bind
-
-instance MonadPlus Parser where
-  mzero = failure
-  mplus = combine
-
-instance Alternative Parser where
-  empty = mzero
-  (<|>) = option
-
-bind :: Parser a -> (a -> Parser b) -> Parser b
-bind p f = Parser $ \s -> concatMap (\(a, s') -> parse (f a) s') $ parse p s
-
-unit :: a -> Parser a
-unit a = Parser (\s -> [(a, s)])
-
-combine :: Parser a -> Parser a -> Parser a
-combine p q = Parser (\s -> parse p s ++ parse q s)
-
-failure :: Parser a
-failure = Parser (const [])
-
-option :: Parser a -> Parser a -> Parser a
-option  p q = Parser $ \s ->
-  case parse p s of
-    []     -> parse q s
-    res    -> res

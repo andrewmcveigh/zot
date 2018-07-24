@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Reader where
@@ -6,33 +7,15 @@ import Core
 import Reader.Types
 
 import Data.Char (isDigit)
-import qualified Data.Text as Text
+-- import qualified Data.Text as Text
+import Text.Parsec hiding ((<|>), many, string, token)
 
 import Debug.Trace
 
-runParser :: Parser a -> Text -> a
-runParser m s =
-  case parse m s of
-    [(res, null -> True)] -> res
-    [(_, s')]             -> panic ("Parser did not consume entire stream." <> s')
-    _                     -> panic "Parser error."
-
-item :: Parser Char
-item = Parser $ \case
-  (null -> True) -> []
-  text           -> [(Text.head text, Text.tail text)]
-
-satisfy :: (Char -> Bool) -> Parser Char
-satisfy p = item >>= \c ->
-  if p c
-  then pure c
-  else Parser (const [])
+type Parser = Parsec Text ()
 
 is :: [Char] -> Parser [Char]
 is = foldr (\x -> (<*>) ((:) <$> satisfy (== x))) (pure [])
-
-oneOf :: [Char] -> Parser Char
-oneOf s = satisfy $ flip elem s
 
 noneOf :: [Char] -> Parser Char
 noneOf s = satisfy (not . flip elem s)
@@ -43,17 +26,20 @@ whitespace = many $ oneOf whitespaceChars
 macroTerminating :: Parser [Char]
 macroTerminating = some $ oneOf macroChars
 
-tokenEnd :: Parser [Char]
-tokenEnd = whitespace <|> macroTerminating <|> is "."
+tokenEnd :: Parser ()
+tokenEnd
+  = lookAhead (end *> pure ()) <|> eof
+  where
+    end = whitespace <|> macroTerminating <|> is ". "
 
-fromMaybe :: Maybe a -> Parser a
-fromMaybe (Just x) = pure x
-fromMaybe Nothing  = failure
+fromMaybe :: [Char] -> Maybe a -> Parser a
+fromMaybe _   (Just x) = pure x
+fromMaybe err Nothing  = fail err
 
 token :: Parser Token
 token =
-  pack <$> many (oneOf tokenChars) >>=
-    Reader.fromMaybe . mkToken
+  pack <$> manyTill (oneOf tokenChars) tokenEnd >>=
+    Reader.fromMaybe "Couldn't parse token" . mkToken
 
 until :: Char -> Parser Text
 until c = pack <$> many (satisfy (/= c))
@@ -81,7 +67,7 @@ integer = do
   txt <- some $ satisfy isNumChar
   case Core.read $ pack txt of
     Just i -> pure . Integer $ i
-    Nothing -> failure
+    Nothing -> fail "Wasn't an integer"
   where
     isNumChar c = isDigit c || c == '-'
 
@@ -123,7 +109,7 @@ lambdaBinding :: Parser Name
 lambdaBinding = do
   _ <- is "\\"
   n <- trace "HHH" name
-  _ <- traceShow ("HHHH" <> unName n) $ is ". "
+  _ <- traceShow ("HHHH" <> unName n) (is "." *> whitespace)
   pure n
 
 lambda :: Parser Syntax
@@ -169,8 +155,13 @@ syntax =
 -- toplevel :: Parser Def
 -- toplevel = def
 
-read :: Text -> Syntax
-read = runParser syntax
+runParser'
+  :: Stream s Identity t
+  => Parsec s () a -> s -> Either ParseError a
+runParser' p = runParser p () "Text"
+
+read :: Text -> Either ParseError Syntax
+read = runParser' syntax
 
 -- runParser natural "1"
 
