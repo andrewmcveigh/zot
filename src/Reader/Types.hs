@@ -34,7 +34,9 @@ tokenChars :: [Char]
 tokenChars = ['a'..'z'] <> ['A'..'Z'] <> ['0'..'9'] <> punctuation <> greek
   where
     punctuation
-      = ['\'', '.', '!', '$', '&', '*', '<', '>'
+      = ['\''
+        -- , '.'
+        , '!', '$', '&', '*', '<', '>'
         , '?', '+', '|', '_', ':', '/', '=', '-']
     greek
       = ['λ']
@@ -56,6 +58,9 @@ pattern Name :: Text -> Name
 pattern Name t <- MkName t
 {-# COMPLETE Name #-}
 
+instance Print Name where
+  pr (Name t) = t
+
 fromToken :: Token -> Name
 fromToken = MkName . unToken
 
@@ -63,20 +68,18 @@ mkName :: Text -> Maybe Name
 mkName t = fromToken <$> mkToken t
 
 data Literal
-  = Unit
-  | Boolean Bool
+  = Boolean Bool
   | Keyword Name
   | Integer Core.Integer
   | String  Text
   deriving (Eq, Show)
 
 instance Print Literal where
-  pr Unit               = "()"
   pr (Boolean True)     = "True"
   pr (Boolean False)    = "False"
   pr (Keyword (Name t)) = ":" <> t
   pr (Integer i)        = pack $ show i
-  pr (String t)         = "\"" <> t <> "\""
+  pr (String t)         = pack $ show t
 
 data Lambda
   = Lambda
@@ -97,13 +100,15 @@ instance Print Sexp where
   pr (Sexp x xs) = pr x <> " " <> pr xs
 
 data Syntax
-  = Lit Literal
+  = Unit
+  | Lit Literal
   | Sym Name
   | Lam Lambda
   | Sxp Sexp
   deriving (Eq, Show)
 
 instance Print Syntax where
+  pr Unit     = "()"
   pr (Lit x)  = pr x
   pr (Sym x)  = unName x
   pr (Lam f)  = pr f

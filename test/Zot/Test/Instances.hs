@@ -18,8 +18,7 @@ instance Arbitrary Name where
   arbitrary = arbitrary `suchThatMap` mkName
 
 instance Arbitrary Literal where
-  arbitrary = oneof [ pure Unit
-                    , Boolean <$> arbitrary
+  arbitrary = oneof [ Boolean <$> arbitrary
                     , Keyword <$> arbitrary
                     , Integer <$> arbitrary
                     , String  <$> arbitrary
@@ -44,7 +43,8 @@ instance Arbitrary Sexp where
                     ]
 
 instance Arbitrary Syntax where
-  arbitrary = oneof [ Reader.Lit <$> arbitrary
+  arbitrary = oneof [ pure Unit
+                    , Reader.Lit <$> arbitrary
                     , Reader.Sym <$> arbitrary
                     , Reader.Lam <$> arbitrary
                     , Reader.Sxp <$> arbitrary

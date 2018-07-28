@@ -9,16 +9,18 @@ import Reader.Types
 import Data.Char (isDigit)
 -- import qualified Data.Text as Text
 import Text.Parsec hiding ((<|>), many, string, token)
+-- import qualified Text.Parsec as P
+-- import Text.Parsec.Char (spaces)
 
-import Debug.Trace
+-- import Debug.Trace
 
 type Parser = Parsec Text ()
 
 is :: [Char] -> Parser [Char]
 is = foldr (\x -> (<*>) ((:) <$> satisfy (== x))) (pure [])
 
-noneOf :: [Char] -> Parser Char
-noneOf s = satisfy (not . flip elem s)
+not :: Parser a -> Parser ()
+not p = try p *> fail "Was p when you said it was `not`" <|> pure ()
 
 whitespace :: Parser [Char]
 whitespace = many $ oneOf whitespaceChars
@@ -38,8 +40,10 @@ fromMaybe err Nothing  = fail err
 
 token :: Parser Token
 token =
-  pack <$> manyTill (oneOf tokenChars) tokenEnd >>=
-    Reader.fromMaybe "Couldn't parse token" . mkToken
+  pack <$> token' >>= Reader.fromMaybe "Couldn't parse token" . mkToken
+  where
+    token'
+      = some (oneOf tokenChars) -- <* P.optional (Reader.not tokenEnd)
 
 until :: Char -> Parser Text
 until c = pack <$> many (satisfy (/= c))
@@ -48,16 +52,25 @@ untilP :: Parser [Char] -> Parser a -> Parser [[Char]]
 untilP p p' = many p <* p'
 
 string :: Parser Literal
-string = is "\"" *> (String <$> until '"') <* is "\""
+string = between (char '"') (char '"') (String . pack . mconcat <$> many valid)
+  where
+    valid = try doubleEscape <|> notEnd
+    notEnd = do
+      c <- noneOf "\""
+      pure [c]
+    doubleEscape = do
+      _ <- char '\\'
+      c <- oneOf "\\\""
+      pure [c]
 
-unit :: Parser Literal
+unit :: Parser Syntax
 unit = is "()" *> pure Unit
 
 symbol :: Parser Syntax
 symbol = Sym . fromToken <$> token
 
 keyword :: Parser Literal
-keyword = Keyword . fromToken <$> (is ":" *> token)
+keyword = Keyword . fromToken <$> (char ':' *> token)
 
 name :: Parser Name
 name = fromToken <$> token
@@ -73,15 +86,14 @@ integer = do
 
 bool :: Parser Literal
 bool =
-      is "true"  *> pure (Boolean True)
-  <|> is "false" *> pure (Boolean False)
+      is "True"  *> pure (Boolean True)
+  <|> is "False" *> pure (Boolean False)
 
 literal :: Parser Literal
 literal =
-      unit
-  <|> string
-  <|> keyword
-  <|> integer
+      try string
+  <|> try keyword
+  <|> try integer
   <|> bool
 
 lit :: Parser Syntax
@@ -91,10 +103,10 @@ delimited :: Char -> Parser Syntax
 delimited c = syntax <* oneOf [c]
 
 parenthesized :: Parser a -> Parser a
-parenthesized p = is "(" *> p <* is ")"
+parenthesized = between (char '(') (char ')')
 
 whitespaced :: Parser a -> Parser a
-whitespaced p = whitespace *> p <* whitespace
+whitespaced = between spaces spaces
 
 openBracket :: Parser Char
 openBracket = oneOf "["
@@ -106,18 +118,12 @@ bracketed :: Parser a -> Parser a
 bracketed p = do _ <- openBracket; e <- p; _ <- closeBracket; return e
 
 lambdaBinding :: Parser Name
-lambdaBinding = do
-  _ <- is "\\"
-  n <- trace "HHH" name
-  _ <- traceShow ("HHHH" <> unName n) (is "." *> whitespace)
-  pure n
+lambdaBinding = is "\\" *> name <* (is "." *> whitespace)
 
 lambda :: Parser Syntax
-lambda = do
-  _ <- is "("
-  x <- trace "Here!" lambdaBinding
-  _ <- trace "Here2!" $ is ")"
-  Lam . Lambda x <$> traceShow x syntax
+lambda = between (char '(') (char ')') $ do
+  x <- lambdaBinding
+  Lam . Lambda x <$> syntax
 
 sexp :: Parser Syntax
 sexp
@@ -138,10 +144,11 @@ sexp
 syntax :: Parser Syntax
 syntax =
   whitespaced $
-      lit
-  <|> symbol
-  <|> lambda
-  <|> sexp
+      try lambda
+  <|> try sexp
+  <|> try symbol
+  <|> try lit
+  <|> unit
 
 -- def :: Parser Def
 -- def = do
