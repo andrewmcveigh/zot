@@ -52,18 +52,23 @@ untilP :: Parser [Char] -> Parser a -> Parser [[Char]]
 untilP p p' = many p <* p'
 
 string :: Parser Literal
-string = between (char '"') (char '"') (String . pack . mconcat <$> many valid)
+string = between (char '"') (char '"') $ do
+  s <- wrap . mconcat <$> many valid
+  case Core.read (pack s) of
+    Just t  -> pure (String t)
+    Nothing -> fail ("Invalid string: " <> s)
   where
+    wrap s = "\"" <> s <> "\""
     valid = try doubleEscape <|> notEnd
     notEnd = do
       c <- noneOf "\""
       pure [c]
     doubleEscape = do
-      _ <- char '\\'
-      c <- oneOf "\\\""
-      pure [c]
+      c <- char '\\'
+      d <- oneOf "\\\""
+      pure [c, d]
 
-unit :: Parser Syntax
+unit :: Parser Sexp
 unit = is "()" *> pure Unit
 
 symbol :: Parser Syntax
@@ -117,19 +122,19 @@ closeBracket = oneOf "]"
 bracketed :: Parser a -> Parser a
 bracketed p = do _ <- openBracket; e <- p; _ <- closeBracket; return e
 
-lambdaBinding :: Parser Name
-lambdaBinding = is "\\" *> name <* (is "." *> whitespace)
+binding :: Parser Binding
+binding = char '\\' *> (Binding <$> name) <* char '.'
 
-lambda :: Parser Syntax
-lambda = between (char '(') (char ')') $ do
-  x <- lambdaBinding
-  Lam . Lambda x <$> syntax
+-- lambda :: Parser Syntax
+-- lambda = between (char '(') (char ')') $ do
+--   x <- lambdaBinding
+--   Lam . Lambda x <$> syntax
 
 sexp :: Parser Syntax
 sexp
-  = parenthesized $ Sxp . toSexp <$> some syntax
+  = parenthesized $ Sxp . toSexp <$> many syntax
   where
-    toSexp []     = panic "Impossible"
+    toSexp []     = Unit
     toSexp [x]    = Last x
     toSexp (x:xs) = Sexp x (toSexp xs)
 
@@ -144,11 +149,10 @@ sexp
 syntax :: Parser Syntax
 syntax =
   whitespaced $
-      try lambda
+      (Bnd <$> try binding)
   <|> try sexp
   <|> try symbol
   <|> try lit
-  <|> unit
 
 -- def :: Parser Def
 -- def = do

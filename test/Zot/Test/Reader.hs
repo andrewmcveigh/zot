@@ -33,8 +33,8 @@ tests
       -- , test_sexp
       -- , prop_lambda
         test_string
-      --   prop_stringRead
-      -- , prop_roundTrip
+      , prop_stringRead
+      , prop_roundTrip
       -- ,
       ]
 
@@ -95,18 +95,6 @@ test_tokenRead
       assertResult "Parse a token. "
         (unToken <$> runParser' token "x. ") "x"
 
-test_trivialLambda :: TestTree
-test_trivialLambda
-  = testCase "Read trivial lambda" $ do
-      assertResult "Trivial binding \\x."
-        (pr <$> runParser' lambdaBinding "\\x.") "x"
-      assertResult "Openparen binding (\\x."
-        (pr <$> runParser' (char '(' *> lambdaBinding) "(\\x.") "x"
-      assertResult "(\\x. e)"
-        (pr <$> runParser' lambda "(\\x. e)") "(\\x. e)"
-      assertResult "(\\x. e)"
-        (pr <$> runParser' syntax "(\\x. e)") "(\\x. e)"
-
 prop_symbolRead :: TestTree
 prop_symbolRead
   = QC.testProperty "Symbol read" $
@@ -130,9 +118,9 @@ prop_lambdaBinding
   = testProperty "Lambda binding read" $
       forAll gen $
         \s ->
-          case runParser' lambdaBinding s of
-            Right (Name _) -> True
-            _              -> False
+          case runParser' binding s of
+            Right (Binding (Name _)) -> True
+            _                        -> False
   where
     gen    = wrap . unName <$> arbitrary
     wrap x = "\\" <> x <> ". "
@@ -184,15 +172,11 @@ test_syntax
         isKeyword $ runParser' syntax " :x"
       assertBool "Parse a right whitespaced keyword" $
         isKeyword $ runParser' syntax ":x "
-      assertBool "Parse the identity lambda" $
-        isLambda $ runParser' syntax "(\\x. x)"
   where
     isSymbol  (Right (Sym _))           = True
     isSymbol  _                         = False
     isKeyword (Right (Lit (Keyword _))) = True
     isKeyword x                         = traceShow x False
-    isLambda  (Right (Lam _))           = True
-    isLambda  _                         = False
 
 test_parenthesized :: TestTree
 test_parenthesized =
@@ -231,23 +215,9 @@ prop_sexp
       x <- arbitrary :: Gen Name
       pure ("(" <> unName f <> " " <> unName x <> ")")
 
-prop_lambda :: TestTree
-prop_lambda
-  = testProperty "Lambda read" $
-      forAll gen $
-        \s ->
-          case runParser' lambda s of
-            Right (Lam _) -> True
-            _             -> False
-  where
-    gen = do
-      f <- arbitrary :: Gen Name
-      x <- arbitrary :: Gen Name
-      pure ("(\\" <> unName f <> ". " <> unName x <> ")")
-
 prop_roundTrip :: TestTree
 prop_roundTrip
-  = QC.testProperty "read . pr == Right identity" $
+  = testProperty "read . pr == Right identity" $
       \e -> Reader.read (pr e) == Right e
 
 ignore :: Bool

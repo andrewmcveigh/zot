@@ -29,6 +29,7 @@ library
     DeriveFunctor
     DeriveTraversable
     FlexibleInstances
+    GeneralizedNewtypeDeriving
     LambdaCase
     MultiParamTypeClasses
     NoImplicitPrelude
@@ -64,6 +65,7 @@ test-suite test
     DeriveFunctor
     DeriveTraversable
     FlexibleInstances
+    GeneralizedNewtypeDeriving
     LambdaCase
     MultiParamTypeClasses
     NoImplicitPrelude

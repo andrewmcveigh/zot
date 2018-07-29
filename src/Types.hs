@@ -13,16 +13,16 @@ module Types
   , Token
   , Type
   , pattern App
-  , pattern Arr
+  -- , pattern Arr
   , pattern Closure
   , pattern Cls
-  , pattern Con
+  -- , pattern Con
   , pattern Lam
   , pattern Lambda
   , pattern Lit
   , pattern Prm
   , pattern Sym
-  , pattern Var
+  -- , pattern Var
   , tarr
   , tcon
   , tvar
@@ -42,14 +42,14 @@ data TypeF a
 
 type Type = Fix TypeF
 
-pattern Con :: Name -> Type
-pattern Con n = Fix (ConF n)
+-- pattern Con :: Name -> Type
+-- pattern Con n = Fix (ConF n)
 
-pattern Var :: Name -> Type
-pattern Var n = Fix (VarF n)
+-- pattern Var :: Name -> Type
+-- pattern Var n = Fix (VarF n)
 
-pattern Arr :: Type -> Type -> Type
-pattern Arr f x = Fix (f `ArrF` x)
+-- pattern Arr :: Type -> Type -> Type
+-- pattern Arr f x = Fix (f `ArrF` x)
 
 tcon :: Name -> Type
 tcon n = Fix (ConF n)

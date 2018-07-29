@@ -28,6 +28,7 @@ import Protolude
   , Integer
   , IO
   , Maybe(..)
+  , Num(..)
   , Ord
   , Read
   -- , Show
@@ -42,8 +43,10 @@ import Protolude
   , isNothing
   , not
   , notElem
+  , otherwise
   , panic
   , readMaybe
+  , zip
   -- , show
   , (.)
   , ($)

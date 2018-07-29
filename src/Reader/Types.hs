@@ -1,15 +1,17 @@
 module Reader.Types
-  ( Lambda(..)
+  ( Binding(..)
   , Literal(..)
   , Name
   , Sexp(..)
   , Syntax(..)
   , Token
   , pattern Name
+  , fromList
   , fromToken
   , macroChars
   , mkName
   , mkToken
+  , toList
   , tokenChars
   , unName
   , unToken
@@ -18,8 +20,10 @@ module Reader.Types
   where
 
 import Core
+import Syntax.Types hiding (Term(..))
 
-import Data.Set as Set
+import Data.Set (intersection)
+import qualified Data.Set as Set
 import qualified Data.Text as Text
 
 newtype Token = Token { unToken :: Text }
@@ -47,69 +51,61 @@ validToken s =
   intersection allowed original == original &&
   Text.head s `elem` ['a'..'z']
   where
-    allowed  = fromList tokenChars
-    original = fromList (unpack s)
+    allowed  = Set.fromList tokenChars
+    original = Set.fromList (unpack s)
 
 mkToken :: Text -> Maybe Token
 mkToken t = if validToken t then Just (Token t) else Nothing
 
-newtype Name = MkName { unName :: Text } deriving (Eq, Ord, Show)
-pattern Name :: Text -> Name
-pattern Name t <- MkName t
-{-# COMPLETE Name #-}
+-- newtype Name = MkName { unName :: Text } deriving (Eq, Ord, Show)
+-- pattern Name :: Text -> Name
+-- pattern Name t <- MkName t
+-- {-# COMPLETE Name #-}
 
-instance Print Name where
-  pr (Name t) = t
+-- instance Print Name where
+--   pr (Name t) = t
 
 fromToken :: Token -> Name
-fromToken = MkName . unToken
+fromToken = Name . unToken
 
 mkName :: Text -> Maybe Name
 mkName t = fromToken <$> mkToken t
 
-data Literal
-  = Boolean Bool
-  | Keyword Name
-  | Integer Core.Integer
-  | String  Text
-  deriving (Eq, Show)
+newtype Binding = Binding { unBinding :: Name } deriving (Eq, Show)
 
-instance Print Literal where
-  pr (Boolean True)     = "True"
-  pr (Boolean False)    = "False"
-  pr (Keyword (Name t)) = ":" <> t
-  pr (Integer i)        = pack $ show i
-  pr (String t)         = pack $ show t
-
-data Lambda
-  = Lambda
-    { _x :: Name
-    , _e :: Syntax
-    } deriving (Eq, Show)
-
-instance Print Lambda where
-  pr (Lambda (Name x) e) = "(\\" <> x <> ". " <> pr e <> ")"
+instance Print Binding where
+  pr (Binding (Name x)) = "\\" <> x <> "."
 
 data Sexp
-  = Last Syntax
+  = Unit
+  | Last Syntax
   | Sexp Syntax Sexp
   deriving (Eq, Show)
 
+fromList :: [Syntax] -> Sexp
+fromList []       = Unit
+fromList [x]      = Last x
+fromList (x : xs) = Sexp x (fromList xs)
+
+toList :: Sexp -> [Syntax]
+toList Unit        = []
+toList (Last x)    = [x]
+toList (Sexp x xs) = x : toList xs
+
 instance Print Sexp where
+  pr Unit        = ""
   pr (Last x)    = pr x
   pr (Sexp x xs) = pr x <> " " <> pr xs
 
 data Syntax
-  = Unit
-  | Lit Literal
+  = Lit Literal
   | Sym Name
-  | Lam Lambda
+  | Bnd Binding
   | Sxp Sexp
   deriving (Eq, Show)
 
 instance Print Syntax where
-  pr Unit     = "()"
   pr (Lit x)  = pr x
   pr (Sym x)  = unName x
-  pr (Lam f)  = pr f
+  pr (Bnd x)  = pr x
   pr (Sxp xs) = "(" <> pr xs <> ")"
