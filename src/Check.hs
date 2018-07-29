@@ -14,7 +14,7 @@ instance HasFTV Type where
   ftv (T.Con _)   = Set.empty
   ftv (T.Var x)   = Set.singleton x
   ftv (T.Arr a b) = ftv a <> ftv b
-  ftv (T.App x y) = ftv x <> ftv y
+  -- ftv (T.App x y) = ftv x <> ftv y
 
 instance HasFTV Scheme where
   ftv (Forall as t) = ftv t `Set.difference` Set.fromList as
@@ -29,7 +29,7 @@ instance Substitute Type where
   sub _ (T.Con c)   = Con c
   sub s (T.Var x)   = findWithDefault (Var x) x (unSub s)
   sub s (T.Arr a b) = Arr (sub s a) (sub s b)
-  sub s (T.App x y) = T.App (sub s x) (sub s y)
+  -- sub s (T.App x y) = T.App (sub s x) (sub s y)
 
 instance Substitute Scheme where
   sub (Sub s) (Forall as t) = Forall as $ sub s' t

@@ -2,7 +2,8 @@ module Zot.Test.Check where
 
 import Core
 import Check
-import Zot.Test.Instances()
+import Check.Types
+import Zot.Test.Instances
 
 import Test.Tasty
 import Test.Tasty.QuickCheck as QC
@@ -10,10 +11,13 @@ import Test.Tasty.QuickCheck as QC
 tests :: TestTree
 tests
   = testGroup
-      "Syntax tests"
-      [ prop_roundTrip ]
+      "Check tests"
+      [ prop_infer ]
 
-prop_roundTrip :: TestTree
-prop_roundTrip
+prop_infer :: TestTree
+prop_infer
   = testProperty "parse . unparse == Right identity" $
-      \e -> parse (unparse e) == Right e
+      forAll wellTyped $
+        \(e, t) -> case runInfer env e of
+                     Right t' -> t == t'
+                     _        -> False

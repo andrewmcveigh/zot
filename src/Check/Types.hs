@@ -20,7 +20,6 @@ data Type
   = Con Name
   | Var Name
   | Arr Type Type
-  | App Type Type
   deriving (Eq, Ord, Show)
 
 toType :: Literal -> Type
@@ -43,6 +42,9 @@ singleton n a = Sub $ Map.singleton n a
 data Scheme = Forall [Name] Type
 
 newtype Env = Env (Map Name Scheme)
+
+env :: Env
+env = Env Map.empty
 
 data TypeError
   = InfiniteType Name Type
