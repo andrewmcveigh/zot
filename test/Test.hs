@@ -3,8 +3,8 @@ module Main where
 import Core
 
 import qualified Zot.Test.Check as Check
-import qualified Zot.Test.Reader as Reader
-import qualified Zot.Test.Syntax as Syntax
+-- import qualified Zot.Test.Reader as Reader
+-- import qualified Zot.Test.Syntax as Syntax
 
 import Test.Tasty
 -- import Test.Tasty.QuickCheck as QC
@@ -14,9 +14,9 @@ main :: IO ()
 main = defaultMain tests
 
 tests :: TestTree
-tests = testGroup "Tests" [ Reader.tests
-                          , Syntax.tests
-                          , Check.tests
+tests = testGroup "Tests" [ -- Reader.tests
+                          -- , Syntax.tests
+                          Check.tests
                           ]
 
 -- properties :: TestTree

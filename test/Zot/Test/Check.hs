@@ -16,8 +16,8 @@ tests
 
 prop_infer :: TestTree
 prop_infer
-  = testProperty "parse . unparse == Right identity" $
+  = testProperty "T == infer (gen at type T)" $
       forAll wellTyped $
-        \(e, t) -> case runInfer env e of
-                     Right t' -> t == t'
-                     _        -> False
+        \(e, t) -> case runInfer tenv e of
+                     Right t' -> t == t' || traceShow (t, t') False
+                     err      -> traceShow err False

@@ -64,21 +64,28 @@ instance Arbitrary Term where
                     ]
 
 instance Arbitrary Check.Type where
-  arbitrary = oneof [ Con <$> arbitrary
+  arbitrary = oneof [ boolGen
                     , Var <$> arbitrary
                     , Arr <$> arbitrary <*> arbitrary
                     ]
+    where
+      boolGen = QC.elements [ Con $ Name "Boolean"
+                            , Con $ Name "Integer"
+                            , Con $ Name "String"
+                            ]
 
-newtype GEnv = GEnv { unGEnv :: Map Type [Name] }
+data GEnv = GEnv { _lev :: Integer
+                 , _env :: Map Type [Name]
+                 }
 
 genv :: GEnv
-genv = GEnv Map.empty
+genv = GEnv 10 Map.empty
 
 bind :: Type -> Name -> GEnv -> GEnv
-bind t a (GEnv m) =
+bind t a (GEnv l m) =
   case Map.lookup t m of
-    Just as -> GEnv $ Map.insert t (a : as) m
-    Nothing -> GEnv $ Map.insert t [a] m
+    Just as -> GEnv l $ Map.insert t (a : as) m
+    Nothing -> GEnv l $ Map.insert t [a] m
 
 lamAt :: GEnv -> Check.Type -> Check.Type -> Gen Syntax.Lambda
 lamAt env t1 t2 = do
@@ -93,7 +100,7 @@ lamAt env t1 t2 = do
   --   a `freeIn` (Syntax.Lam (Syntax.Lambda x e)) = x /= a && a `freeIn` e
 
 fromEnv :: GEnv -> Type -> Gen (Maybe Term)
-fromEnv (GEnv env) t =
+fromEnv (GEnv _ env) t =
   case Map.lookup t env of
     Just xs -> Just . Syntax.Sym <$> QC.elements xs
     Nothing -> pure Nothing
@@ -112,35 +119,66 @@ appAt env t = do
   t1 <- arbitrary
   Syntax.App <$> (Syntax.Lam <$> lamAt env t1 t) <*> termAt env t
 
+dec :: GEnv -> GEnv
+dec env@(GEnv lev _) = env { _lev = lev - 1}
+
+sizeLimit :: GEnv -> Type -> Gen Term -> Gen Term
+sizeLimit env@(GEnv l _) t g =
+  if l <= 0 then
+    fromEnv env t `option`
+      case t of
+        Con (Name "Boolean") -> Syntax.Lit . Boolean <$> arbitrary
+        Con (Name "Integer") -> Syntax.Lit . Integer <$> arbitrary
+        Con (Name "String")  -> Syntax.Lit . String  <$> arbitrary
+        Con _                -> panic "Impossible pattern match"
+        Var _                -> Syntax.Lit . Integer <$> arbitrary
+        Arr a b              -> Lam <$> lamAt env a b
+  else
+    g
+
 termAt
   :: GEnv -> Check.Type -> Gen Term
 
 termAt env t@(Con (Name "Boolean"))
-  = oneof [ fromEnv env t `option` (Syntax.Lit . Boolean <$> arbitrary)
-          , appAt env (Con (Name "Boolean"))
-          ]
+  = sizeLimit env t $
+      oneof [ fromEnv env t `option` (Syntax.Lit . Boolean <$> arbitrary)
+            , appAt (dec env) (Con (Name "Boolean"))
+            ]
 
 termAt env t@(Con (Name "Integer"))
-  = oneof [ fromEnv env t `option` (Syntax.Lit . Integer <$> arbitrary)
-          , appAt env (Con (Name "Boolean"))
-          ]
+  = sizeLimit env t $
+      oneof [ fromEnv env t `option` (Syntax.Lit . Integer <$> arbitrary)
+            , appAt (dec env) (Con (Name "Boolean"))
+            ]
 
 termAt env t@(Con (Name "String"))
-  = oneof [ fromEnv env t `option` (Syntax.Lit . String  <$> arbitrary)
-          , appAt env (Con (Name "Boolean"))
-          ]
+  = sizeLimit env t $
+      oneof [ fromEnv env t `option` (Syntax.Lit . String  <$> arbitrary)
+            , appAt (dec env) (Con (Name "Boolean"))
+            ]
 
-termAt _ (Con _)
-  = fail "Invalid type constant"
+termAt _ (Con (Name x))
+  = fail $ "Invalid type constant" <> unpack x
 
 termAt env t@(Var _)
-  = fromEnv env t `option` arbitrary
+  = sizeLimit env t $
+      fromEnv env t `option` notAtVar (dec env)
 
 termAt env t@(Arr t1 t2)
-  = fromEnv env t `option` (Syntax.Lam <$> lamAt env t1 t2)
+  = sizeLimit env t $
+      fromEnv env t `option` (Syntax.Lam <$> lamAt (dec env) t1 t2)
+
+notAtVar :: GEnv -> Gen Term
+notAtVar env = do
+  t <- arbitrary `suchThat` (not . isVar)
+  termAt (dec env) t
+
+isVar :: Type -> Bool
+isVar (Var _) = True
+isVar _       = False
 
 wellTyped :: Gen (Term, Type)
 wellTyped = do
-  t <- arbitrary
+  t <- arbitrary `suchThat` (not . isVar)
   e <- termAt genv t
   pure (e, t)

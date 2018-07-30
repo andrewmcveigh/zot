@@ -43,8 +43,8 @@ data Scheme = Forall [Name] Type
 
 newtype Env = Env (Map Name Scheme)
 
-env :: Env
-env = Env Map.empty
+tenv :: Env
+tenv = Env Map.empty
 
 data TypeError
   = InfiniteType Name Type
